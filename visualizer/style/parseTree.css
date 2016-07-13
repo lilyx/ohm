@@ -18,16 +18,22 @@
   border-bottom: 1px solid #ddd;
   white-space: nowrap;
 }
-#expandedInput {
+#expandedInput,
+.pexpr.leaf > .children > .input {
+  display: inline-block;
   font-family: Menlo, Monaco, sans-serif;
-  font-size: 100%;
+  font-size: 16px;
   outline: none;
   padding: 8px 0;
-}
-#expandedInput,
-#expandedInput span {
-  display: inline-block;
   text-align: center;
+}
+#expandedInput {
+  position: relative;  /* For absolute positioning of children. */
+}
+#expandedInput .input {
+  position: absolute;
+  top: 0;
+  bottom: 0;
 }
 #expandedInput .whitespace {
   color: #bbb;
@@ -49,6 +55,7 @@
   padding: 2px;
 }
 .pexpr {
+  box-sizing: border-box;
   color: #333;
   display: inline-block;
   flex-grow: 1;

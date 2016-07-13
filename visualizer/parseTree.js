@@ -57,6 +57,26 @@
     return 'node-' + nextNodeId++;
   }
 
+  function measureChildren(el, collapsed) {
+    var children = el.lastChild;
+    var oldHeight = children.style.height;
+    var oldWidth = children.style.width;
+
+    console.log('collapsed', collapsed);
+
+    children.style.height = '';
+    children.style.width = collapsed ? '0' : '';
+
+    var result = {
+      width: children.offsetWidth,
+      height: children.offsetHeight
+    };
+
+//    children.style.height = oldHeight;
+//    children.style.width = oldWidth;
+    return result;    
+  }
+
   function measureLabel(wrapperEl) {
     var tempWrapper = $('#measuringDiv .pexpr');
     var labelClone = wrapperEl.querySelector('.label').cloneNode(true);
@@ -66,20 +86,6 @@
       height: clone.offsetHeight
     };
     tempWrapper.innerHTML = '';
-    return result;
-  }
-
-  function measureChildren(wrapperEl) {
-    var measuringDiv = $('#measuringDiv');
-    var clone = measuringDiv.appendChild(wrapperEl.cloneNode(true));
-    clone.style.width = '';
-    var children = clone.lastChild;
-    children.hidden = !children.hidden;
-    var result = {
-      width: children.offsetWidth,
-      height: children.offsetHeight
-    };
-    measuringDiv.removeChild(clone);
     return result;
   }
 
@@ -98,6 +104,7 @@
     return result;
   }
 
+/*
   function initializeWidths() {
     var els = getWidthDependentElements($('.pexpr'));
 
@@ -142,6 +149,13 @@
       }
     }
   }
+*/
+  function updateInputWidths() {
+    domUtil.$$('.pexpr.leaf > .children > .input').forEach(function(span) {
+      var leaf = span.parentElement.parentElement;
+      leaf._input.style.left = span.getBoundingClientRect().left + 'px';
+    });
+  }
 
   function clearMarks() {
     inputMark = cmUtil.clearMark(inputMark);
@@ -154,53 +168,49 @@
   // Hides or shows the children of `el`, which is a div.pexpr.
   function toggleTraceElement(el, optDurationInMs) {
     var children = el.lastChild;
-    var isCollapsed = children.hidden;
+    var isCollapsed = el.classList.contains('collapsed');
     setTraceElementCollapsed(el, !isCollapsed, optDurationInMs);
   }
 
   // Hides or shows the children of `el`, which is a div.pexpr.
   function setTraceElementCollapsed(el, collapse, optDurationInMs) {
-    el.classList.toggle('collapsed', collapse);
-
-    ohmEditor.parseTree.emit((collapse ? 'collapse' : 'expand') + ':traceElement', el);
-
-    var childrenSize = measureChildren(el);
-    var newWidth = collapse ? measureLabel(el).width : childrenSize.width;
-
-    // The pexpr can't be smaller than the input text.
-    newWidth = Math.max(newWidth, measureInput(el._input).width);
-
-    var widthDeps = getWidthDependentElements(el);
     var duration = optDurationInMs != null ? optDurationInMs : 500;
+    var children = el.lastChild;
+
+    // NOTE: Ensure that `measureChildren` is called after reading offsetWidth/offsetHeight
+    // of any element, otherwise we incur an unnecessary layout.
+    var currentWidth = el.offsetWidth;
+    var currentChildrenHeight = children.offsetHeight;
+    var desiredChildrenSize = measureChildren(el, collapse);
+
+    var newWidth = desiredChildrenSize.width;
 
     d3.select(el)
+        .style('width', currentWidth + 'px')
         .transition().duration(duration)
-        .styleTween('width', tweenWithCallback(newWidth + 'px', function(v) {
-          updateInputWidths(widthDeps);
-        }))
+        .styleTween('width', tweenWithCallback(newWidth + 'px', updateInputWidths))
         .each('end', function() {
-          // Remove the width and allow the flexboxes to adjust to the correct
-          // size. If there is a glitch when this happens, we haven't calculated
-          // `newWidth` correctly.
           this.style.width = '';
         });
 
-    var height = collapse ? 0 : childrenSize.height;
-    d3.select(el.lastChild)
-        .style('height', currentHeightPx)
+    var newHeight = collapse ? 0 : desiredChildrenSize.height;
+    d3.select(children)
+        .style('height', currentChildrenHeight)
+        .style('width', '')  // Unlock the width.
         .transition().duration(duration)
-        .style('height', height + 'px')
-        .each('start', function() { if (!collapse) { this.hidden = false; } })
+        .style('height', newHeight + 'px')
         .each('end', function() {
-          if (collapse) {
-            this.hidden = true;
-          }
-          this.style.height = '';
+          this.style.width = newWidth + 'px';  // Lock the width to the label width.
         });
+
+    console.log('newWidth', newWidth);
+    console.log('newHeight', newHeight);
 
     if (duration === 0) {
       d3.timer.flush();
     }
+    ohmEditor.parseTree.emit((collapse ? 'collapse' : 'expand') + ':traceElement', el);
+    el.classList.toggle('collapsed', collapse);
   }
 
   function updateZoomState(newState) {
@@ -589,14 +599,10 @@
         children.classList.toggle(
             'vbox', visibleChoice || visibleLR || (isAlt(node.expr) && isVBoxItem));
 
-        var isCollapsed = shouldTraceElementBeCollapsed(el, node);
-        if (isCollapsed) {
-          setTraceElementCollapsed(el, true, 0);
-        }
-
         ohmEditor.parseTree.emit('create:traceElement', el, node);
 
         if (isLeafNode) {
+          if (childInput) children.appendChild(childInput.cloneNode(true));
           return node.SKIP;
         }
         inputStack.push(childInput);
@@ -612,6 +618,11 @@
         inputStack.pop();
 
         ohmEditor.parseTree.emit('exit:traceElement', el, node);
+
+        var isCollapsed = shouldTraceElementBeCollapsed(el, node);
+        if (isCollapsed) {
+//          setTraceElementCollapsed(el, true, 0);
+        }
       }
     };
     renderedTrace.walk(renderActions);
@@ -622,8 +633,9 @@
       var remainingInput = trace.inputStream.sourceSlice(firstFailedEl._traceNode.pos);
       expandedInputDiv.appendChild(domUtil.createElement('span.input.unconsumed', remainingInput));
     }
+    updateInputWidths();
+//    initializeWidths();
 
-    initializeWidths();
 
     // Hack to ensure that the vertical scroll bar doesn't overlap the parse tree contents.
     parseResultsDiv.style.paddingRight =
