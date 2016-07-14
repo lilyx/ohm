@@ -29,6 +29,10 @@ textarea {
 .self.passThrough > .semanticsEditor:not(.showing) > *:not(.showing) {
   display: none;
 }
+/* LIVE hack: always show the top-level result. */
+#parseResults > .pexpr > .children > .pexpr > .self .result {
+  display: block;
+}
 
 /* Editor header container */
 .semanticsEditor .header {
