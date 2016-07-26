@@ -136,7 +136,7 @@
       unselectOtherSemanticButtons(nameContainer);
       wrapper.classList.toggle('selected');
       ohmEditor.semantics.emit('change:semanticOperation', name, args);
-      ohmEditor.parseTree.refresh(ohmEditor.parseTree.rootTrace, false);
+      ohmEditor.parseTree.refresh();
     });
 
     nameContainer.oncontextmenu = function(event) {
@@ -173,7 +173,7 @@
       }
 
       ohmEditor.semantics.emit('edit:semanticOperation', wrapper, operationName, args);
-      ohmEditor.parseTree.refresh(ohmEditor.parseTree.rootTrace, false);
+      ohmEditor.parseTree.refresh();
     });
 
     domUtil.addMenuItem('operationMenu', 'edit', 'Edit', true, function(event) {
@@ -182,6 +182,7 @@
       argNameContainer.readOnly = false;
       argNameContainer.select();
       ohmEditor.semantics.emit('edit:semanticOperation', wrapper, operationName, undefined);
+      ohmEditor.parseTree.refresh();
     });
   }
 
@@ -292,18 +293,27 @@
     domUtil.addMenuItem('operationMenu', 'delete', 'Delete', true, function(event) {
         container.removeChild(wrapper);
         ohmEditor.semantics.emit('edit:semanticOperation', wrapper, operationName, undefined);
-        ohmEditor.parseTree.refresh(ohmEditor.parseTree.rootTrace, false);
+        ohmEditor.parseTree.refresh();
       });
 
     domUtil.addMenuItem('operationMenu', 'edit', 'Edit', true, function(event) {
       nameContainer.select();
       relaxButton(wrapper);
       ohmEditor.semantics.emit('edit:semanticOperation', wrapper, operationName, undefined);
+      ohmEditor.parseTree.refresh();
     });
   }
 
   // Add new operation or attribute wrapper
   function addNewSemanticButton(type) {
+    var preSelected = $('.self.selected');
+    if (preSelected) {
+      preSelected.classList.remove('selected');
+    }
+
+    $('.semanticsEditor').classList.remove('showing');
+    ohmEditor.parseTree.refresh();
+
     var container = type === 'Operation' ? $('#operations') : $('#attributes');
 
     // If the first semantic button in the list is not saved yet, return
